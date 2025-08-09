@@ -1,0 +1,66 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Log in";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-header text-center">
+                <h2 class="h4">@ViewData["Title"]</h2>
+            </div>
+            <div class="card-body">
+                <section>
+                    <form asp-controller="Auth" asp-action="Login" asp-route-returnurl="@Model.ReturnUrl" method="post">
+                        @* Use this to show summary errors, like "Invalid login attempt" *@
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
+                        
+                        <div class="form-floating mb-3">
+                            <input asp-for="Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                            <label asp-for="Email" class="form-label"></label>
+                            <span asp-validation-for="Email" class="text-danger"></span>
+                        </div>
+                        
+                        <div class="form-floating mb-3">
+                            <input asp-for="Password" type="password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
+                            <label asp-for="Password" class="form-label"></label>
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-primary">Log in</button>
+                        </div>
+                        
+                        <div>
+                            <p>
+                                <a asp-action="Register" asp-route-returnurl="@Model.ReturnUrl">Register as a new user</a>
+                            </p>
+                        </div>
+                    </form>
+                </section>
+                @* @if (Model.ExternalLogins.Any())
+                {
+                    <hr class="my-4" />
+                    <section>
+                        <h4 class="text-center text-muted h6 mb-3">Or sign in with</h4>
+
+                        <form asp-controller="Auth" asp-action="Challenge" asp-route-returnUrl="@Model.ReturnUrl" method="post" class="d-grid">
+                            <div>
+                                @foreach (var provider in Model.ExternalLogins)
+                                {
+                                    <button type="submit" class="btn btn-outline-secondary w-100" name="provider" value="@provider.Name" title="Log in using your @provider.DisplayName account">
+                                        Sign in with @provider.DisplayName
+                                    </button>
+                                }
+                            </div>
+                        </form>
+                    </section>
+                } *@
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

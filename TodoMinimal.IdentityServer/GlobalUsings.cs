@@ -1,0 +1,3 @@
+global using TodoMinimal.IdentityServer.ConfigurationOptions;
+global using TodoMinimal.IdentityServer.Extensions;
+global using TodoMinimal.IdentityServer.Infrastructure;
