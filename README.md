@@ -1,0 +1,2 @@
+# VuNguyenPractical.TodoMinimal
+VuNguyenPractical.TodoMinimal
