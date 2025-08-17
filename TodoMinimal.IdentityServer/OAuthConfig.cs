@@ -52,38 +52,7 @@ public class OAuthConfig
             {
                 OpenIddictConstants.Permissions.Endpoints.Introspection
             }
-        },
-        // new OpenIddictApplicationDescriptor
-        // {
-        //     ClientId = "windows-client",
-        //     ClientSecret = "windows-secret",
-        //     ClientType = OpenIddictConstants.ClientTypes.Confidential,
-        //     ConsentType = OpenIddictConstants.ConsentTypes.Explicit,
-        //     ApplicationType = OpenIddictConstants.ApplicationTypes.Native,
-        //     DisplayName = "Windows Client",
-        //     Permissions =
-        //     {
-        //         // Endpoints
-        //         OpenIddictConstants.Permissions.Endpoints.Token,
-        //         OpenIddictConstants.Permissions.Endpoints.Authorization,
-        //         OpenIddictConstants.Permissions.Endpoints.EndSession,
-        //         OpenIddictConstants.Permissions.Endpoints.Revocation,
-
-        //         //GrantTypes
-        //         OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-        //         OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-        //         OpenIddictConstants.Permissions.ResponseTypes.Code,
-
-        //         // Scopes - required role
-        //         OpenIddictConstants.Permissions.Scopes.Email,
-        //         OpenIddictConstants.Permissions.Scopes.Profile,
-        //         OpenIddictConstants.Permissions.Scopes.Roles,
-        //     },
-        //     RedirectUris = 
-        //     { 
-        //         new Uri("https://localhost:5001/auth/callback")
-        //     },
-        // }
+        }
     };
 
     public static IEnumerable<OpenIddictScopeDescriptor> Scopes => new List<OpenIddictScopeDescriptor>

@@ -30,12 +30,6 @@ namespace TodoMinimal.IdentityServer.Controllers
             _scopeManager = scopeManager;
         }
 
-        // [HttpPost]
-        // [ValidateAntiForgeryToken]
-        // public IActionResult Challenge(string provider, string? returnUrl = null)
-        // {
-        //     return Challenge(new AuthenticationProperties { RedirectUri = returnUrl ?? "/" }, provider);
-        // }
 
         [HttpGet]
         public async Task<IActionResult> Login(string? returnUrl = null)
@@ -142,6 +136,7 @@ namespace TodoMinimal.IdentityServer.Controllers
             {
                 throw new InvalidOperationException("The client_id is missing from the request.");
             }
+
             var application = await _applicationManager.FindByClientIdAsync(request.ClientId) ??
                 throw new InvalidOperationException("The specified client application cannot be found.");
 
@@ -150,59 +145,33 @@ namespace TodoMinimal.IdentityServer.Controllers
 
             var identity = new ClaimsIdentity(
                 authenticationType: TokenValidationParameters.DefaultAuthenticationType,
-                nameType: OpenIddictConstants.Claims.Name, 
+                nameType: OpenIddictConstants.Claims.Name,
                 roleType: OpenIddictConstants.Claims.Role
             );
 
             var userId = user.Id.ToString();
-            identity.SetClaim(OpenIddictConstants.Claims.Subject,
-                userId);
+            
+            var roles = await _userManager.GetRolesAsync(user);
+            foreach (var role in roles)
+            {
+                identity.AddClaim(OpenIddictConstants.Claims.Role, role);
+            }
 
-            identity.SetClaim(
-                OpenIddictConstants.Claims.Email,
-                user.Email
-            );
-            identity.SetClaim(
-                OpenIddictConstants.Claims.Name,
-                user.UserName
-            );
+            identity.SetClaim(OpenIddictConstants.Claims.Subject, userId);
+            identity.SetClaim(OpenIddictConstants.Claims.Name, user.UserName);
+            identity.SetClaim(OpenIddictConstants.Claims.Email, user.Email);
 
             identity.SetScopes(request.GetScopes());
             identity.SetResources(await _scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync());
+
+            identity.SetDestinations(c => GetDestinations(identity, c));
+
+            var bruh = new ClaimsPrincipal(identity);
             
-            // identity.SetDestinations(claim => claim.Type switch
-            // {
-            //     OpenIddictConstants.Claims.Name when claim.Subject!.HasScope(OpenIddictConstants.Scopes.Profile)
-            //         => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-            //     OpenIddictConstants.Claims.Role when claim.Subject!.HasScope(OpenIddictConstants.Scopes.Roles)
-            //         => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-            //     _ => [OpenIddictConstants.Destinations.AccessToken]
-            // });
-
-             identity.SetDestinations(claim => claim.Type switch
-            {
-                OpenIddictConstants.Claims.Subject when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                OpenIddictConstants.Claims.Email when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                OpenIddictConstants.Claims.Name when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                OpenIddictConstants.Claims.Role when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Roles)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                _ => [OpenIddictConstants.Destinations.AccessToken]
-            });
-
             return SignIn(
-                new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme
+                bruh, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme
             );
         }
-
 
         [HttpPost("~/connect/token")]
         [Produces("application/json")]
@@ -219,7 +188,19 @@ namespace TodoMinimal.IdentityServer.Controllers
 
             var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
-            var userId = result.Principal!.GetClaim(OpenIddictConstants.Claims.Subject);
+            var principal = result.Principal;
+            if(principal is null)
+            {
+                return Forbid(
+                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    {
+                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
+                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The token is invalid."
+                    }));
+            }
+
+            var userId = principal.GetClaim(OpenIddictConstants.Claims.Subject);
             if (userId is null)
             {
                 return Forbid(
@@ -231,35 +212,25 @@ namespace TodoMinimal.IdentityServer.Controllers
                     }));
             }
 
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                return Forbid(
+                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                    properties: new AuthenticationProperties(new Dictionary<string, string?>
+                    {
+                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
+                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user is no longer available."
+                    }));
+            }
+
+
             var identity = new ClaimsIdentity(
-                result.Principal!.Claims,
-                TokenValidationParameters.DefaultAuthenticationType, OpenIddictConstants.Claims.Name,
-                OpenIddictConstants.Claims.Role
+                principal.Claims,
+                authenticationType: TokenValidationParameters.DefaultAuthenticationType,
+                nameType: OpenIddictConstants.Claims.Name,
+                roleType: OpenIddictConstants.Claims.Role
             );
-
-            var userIdClaim = result.Principal.GetClaim(OpenIddictConstants.Claims.Subject);
-            if (userIdClaim is null)
-            {
-                return Forbid(
-                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "Cannot find user id from the token."
-                    }));
-            }
-
-            var user = await _userManager.FindByIdAsync(userIdClaim);
-            if (user == null)
-            {
-                return Forbid(
-                    authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "Cannot find user from the token."
-                    }));
-            }
 
             var roles = await _userManager.GetRolesAsync(user);
             foreach (var role in roles)
@@ -274,55 +245,14 @@ namespace TodoMinimal.IdentityServer.Controllers
             identity.SetScopes(request.GetScopes());
             identity.SetResources(await _scopeManager.ListResourcesAsync(identity.GetScopes()).ToListAsync());
 
-            identity.SetDestinations(claim => claim.Type switch
-            {
-                OpenIddictConstants.Claims.Subject when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
+            identity.SetDestinations(claim => GetDestinations(identity, claim));
+        
+            var properties = new AuthenticationProperties();
+            properties.Parameters.Add(OpenIddictServerAspNetCoreConstants.Tokens.IdentityToken, true);
 
-                OpenIddictConstants.Claims.Email when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
 
-                OpenIddictConstants.Claims.Name when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                OpenIddictConstants.Claims.Role when claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Roles)
-                    => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-
-                _ => [OpenIddictConstants.Destinations.AccessToken]
-            });
-
-            // identity.SetDestinations(claim =>
-            // {
-            //     // The "sub" claim is essential for both token types.
-            //     if (claim.Type == OpenIddictConstants.Claims.Subject)
-            //     {
-            //         return [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken];
-            //     }
-                
-            //     // The "name" and "email" claims should only be added to the identity token
-            //     // if the "profile" scope was granted.
-            //     if (claim.Type is OpenIddictConstants.Claims.Name or OpenIddictConstants.Claims.Email)
-            //     {
-            //         if (claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Profile))
-            //         {
-            //             return [OpenIddictConstants.Destinations.IdentityToken];
-            //         }
-            //         // If profile scope is not granted, these claims are not included anywhere.
-            //         return []; 
-            //     }
-
-            //     // The "role" claim should be added to both the access token (for API authorization)
-            //     // and the identity token if the "roles" scope was granted.
-            //     if (claim.Type == OpenIddictConstants.Claims.Role)
-            //     {
-            //         if (claim.Subject != null && claim.Subject.HasScope(OpenIddictConstants.Scopes.Roles))
-            //         {
-            //             return [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken];
-            //         }
-            //         return [];
-            //     }
-                return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-            }
+            return SignIn(new ClaimsPrincipal(identity), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
 
         [HttpGet("~/signin-cognito")]
         [HttpPost("~/signin-cognito")]
@@ -366,5 +296,47 @@ namespace TodoMinimal.IdentityServer.Controllers
             var redirectUri = result.Properties.RedirectUri ?? Url.Action("Login", "Auth");
             return Redirect(redirectUri ?? "/");
         }
-    }
+
+        public static List<string> GetDestinations(ClaimsIdentity identity, Claim claim)
+        {
+            var destinations = new List<string>();
+
+            if (claim.Type == OpenIddictConstants.Claims.Name)
+            {
+                destinations.Add(OpenIddictConstants.Destinations.AccessToken);
+                if (identity.HasScope(OpenIddictConstants.Scopes.Profile))
+                {
+                     destinations.Add(OpenIddictConstants.Destinations.IdentityToken);
+                }
+            }
+            else if (claim.Type == OpenIddictConstants.Claims.Email)
+            {
+                destinations.Add(OpenIddictConstants.Destinations.AccessToken);
+                if (identity.HasScope(OpenIddictConstants.Scopes.Email))
+                {
+                     destinations.Add(OpenIddictConstants.Destinations.IdentityToken);
+                }
+            }
+            else if (claim.Type == OpenIddictConstants.Claims.Role)
+            {
+                destinations.Add(OpenIddictConstants.Destinations.AccessToken);
+                if (identity.HasScope(OpenIddictConstants.Scopes.Roles))
+                {
+                     destinations.Add(OpenIddictConstants.Destinations.IdentityToken);
+                }
+            }
+            else if (claim.Type == OpenIddictConstants.Claims.Subject)
+            {
+                destinations.Add(OpenIddictConstants.Destinations.AccessToken);
+                destinations.Add(OpenIddictConstants.Destinations.IdentityToken);
+            }
+            else
+            {
+                destinations.Add(OpenIddictConstants.Destinations.AccessToken);
+            }
+
+            return destinations;
+        }
+
+    }   
 }

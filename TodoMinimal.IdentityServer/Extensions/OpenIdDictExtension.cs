@@ -44,6 +44,7 @@ namespace TodoMinimal.IdentityServer.Extensions
                     options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
                     options.SetRefreshTokenLifetime(TimeSpan.FromDays(7));
                     options.UseReferenceRefreshTokens();
+                    options.UseReferenceAccessTokens();
 
                     options.AddEncryptionKey(new SymmetricSecurityKey(
                        Convert.FromBase64String("DRjd/GnduI3Efzen9V9BvbNUfc/VKgXltV7Kbk9sMkY=")));
@@ -56,11 +57,8 @@ namespace TodoMinimal.IdentityServer.Extensions
                         // .DisableTransportSecurityRequirement()
                         .EnableStatusCodePagesIntegration()
                         .EnableAuthorizationEndpointPassthrough()
-                        .EnableTokenEndpointPassthrough()
+                        // .EnableTokenEndpointPassthrough()
                         .EnableEndSessionEndpointPassthrough();
-
-                    // options.RegisterAudiences("amplify-client");
-                    // options.RegisterResources("todo-minimal-api");
                 })
                 .AddClient(options =>
                 {
